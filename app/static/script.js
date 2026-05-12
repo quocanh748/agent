@@ -57,6 +57,11 @@ chatForm.addEventListener('submit', async (e) => {
             body: JSON.stringify({ message })
         });
         
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || "Lỗi máy chủ");
+        }
+        
         const data = await response.json();
         
         // Remove typing indicator
@@ -69,8 +74,13 @@ chatForm.addEventListener('submit', async (e) => {
         }
     } catch (error) {
         typingIndicator.remove();
-        appendMessage('bot', "Không thể kết nối với máy chủ AI.");
-        console.error(error);
+        console.error('Chat Error:', error);
+        
+        if (error.message === "Failed to fetch") {
+            appendMessage('bot', "Không thể kết nối với máy chủ AI. Vui lòng đảm bảo bạn đang truy cập qua http://localhost:8000");
+        } else {
+            appendMessage('bot', `Lỗi: ${error.message}`);
+        }
     }
 });
 
