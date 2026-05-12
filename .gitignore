@@ -1,1 +1,5 @@
-database/*.db
+Database/*.pdf
+.env
+__pycache__
+.venv
+VectorDB/*.sqlite3

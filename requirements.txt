@@ -5,7 +5,8 @@ langchain-community
 langchain-huggingface
 langchain-ollama
 langchain-experimental
-faiss-cpu
+langchain-chroma
+chromadb
 unstructured
 pypdf
 python-multipart

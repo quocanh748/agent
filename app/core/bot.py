@@ -1,28 +1,34 @@
-from langchain_community.document_loaders import DirectoryLoader, UnstructuredFileLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+# app/core/bot.py
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_community.vectorstores.utils import DistanceStrategy
 from langchain_ollama import OllamaLLM
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain_experimental.text_splitter import SemanticChunker
-import os
+
+# IMPORT MODULE DATABASE MỚI TẠO
+from app.core.database import VectorDBManager
 
 class AIAgent:
-    def __init__(self, db_path="./Database", model_name="qwen2.5:1.5b"):
-        self.db_path = db_path
+    def __init__(self, pdf_dir="./Database", persist_dir="./VectorDB", model_name="qwen2.5:1.5b"):
         self.model_name = model_name
         self.store = {}
+        
+        # 1. Khởi tạo model Embedding
         self.embeddings = HuggingFaceEmbeddings(
             model_name="intfloat/multilingual-e5-base",
             model_kwargs={'device': 'cpu'}, 
             encode_kwargs={'normalize_embeddings': False}
         )
-        self.vectorstore = None
+        
+        # 2. GỌI MODULE DATABASE
+        self.db_manager = VectorDBManager(
+            pdf_dir=pdf_dir, 
+            persist_dir=persist_dir, 
+            embeddings=self.embeddings
+        )
+        
         self.rag_chain = None
         self.setup()
 
@@ -32,44 +38,14 @@ class AIAgent:
         return self.store[session_id]
 
     def setup(self):
-        if not os.path.exists(self.db_path):
-            os.makedirs(self.db_path)
-            print(f"Created {self.db_path} directory. Please add PDFs there.")
-            # Create a placeholder chain if no docs exist
+        # Lấy retriever từ module database
+        retriever = self.db_manager.get_retriever()
+
+        # Nếu không có retriever (do chưa có PDF), tự động chuyển về chế độ chat thông thường
+        if not retriever:
+            print("[Agent] No Vector DB available. Using simple LLM mode.")
             self._setup_simple_chain()
             return
-
-        loader = DirectoryLoader(
-            path=self.db_path,
-            glob="**/*.pdf",
-            loader_cls=UnstructuredFileLoader,
-            show_progress=True,
-            use_multithreading=True
-        )
-
-        docs = loader.load()
-        
-        if not docs:
-            print("No documents found in Database. Using simple LLM mode.")
-            self._setup_simple_chain()
-            return
-
-        text_splitter = SemanticChunker(
-            self.embeddings,
-            breakpoint_threshold=0.5
-        )
-        splits = text_splitter.split_documents(docs)
-
-        self.vectorstore = FAISS.from_documents(
-            documents=splits,
-            embedding=self.embeddings,
-            distance_strategy=DistanceStrategy.COSINE
-        )
-
-        retriever = self.vectorstore.as_retriever(
-            search_type="similarity_score_threshold",
-            search_kwargs={"k": 5, "score_threshold": 0.3}
-        )
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a professional and helpful AI Assistant.
