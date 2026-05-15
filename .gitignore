@@ -3,3 +3,4 @@ Database/*.pdf
 __pycache__
 .venv
 VectorDB/*.sqlite3
+VectorDB/*.bin
