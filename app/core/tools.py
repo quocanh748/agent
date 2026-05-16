@@ -183,45 +183,69 @@ def checkout_and_get_payment_qr(showtime_id: str, seat_codes: list[str]) -> dict
             continue_btn = page.locator(".btn--pri").filter(has_text="Tiếp tục").first
             if continue_btn.is_visible():
                 continue_btn.click()
-                print("Đã bấm nút Tiếp tục để tới trang thanh toán")
+                print("Đã bấm nút Tiếp tục (Bước 1: Chọn ghế)")
+                page.wait_for_load_state("networkidle")
                 
-                # Đợi trang chuyển hướng hoặc tải xong (Thường mất vài giây)
-                page.wait_for_timeout(5000)
-                
-                # Cố gắng tìm ảnh QR trên trang thanh toán (VNPAY/Momo...)
-                # Chúng ta sẽ quét tất cả các frame và ảnh
-                found_qr = False
-                
-                # Thử tìm trong trang chính trước
+                # 1. Bypass trang Bắp Nước (Tìm và bấm Tiếp tục lần 2)
                 try:
-                    # Chờ một ảnh bất kỳ có từ khóa 'qr' trong src xuất hiện
-                    qr_locator = page.locator("img[src*='qr'], img[src*='QR'], img[src*='chart']").first
-                    qr_locator.wait_for(timeout=10000)
-                    qr_url = qr_locator.get_attribute("src")
-                    if qr_url:
-                        print(f"Đã tìm thấy QR thật trên trang chính: {qr_url}")
-                        found_qr = True
+                    continue_concession = page.locator(".btn--pri").filter(has_text="Tiếp tục").first
+                    if continue_concession.is_visible():
+                        continue_concession.click()
+                        print("Đã bấm Tiếp tục (Bước 2: Bắp nước)")
+                        page.wait_for_load_state("networkidle")
                 except:
-                    print("Không tìm thấy QR trên trang chính, thử quét các iframe...")
+                    pass
                 
-                # Nếu không thấy trên trang chính, duyệt qua các iframe
-                if not found_qr:
-                    for frame in page.frames:
-                        try:
-                            qr_locator = frame.locator("img[src*='qr'], img[src*='QR'], img[src*='chart']").first
-                            if qr_locator.is_visible():
-                                qr_url = qr_locator.get_attribute("src")
-                                if qr_url:
-                                    print(f"Đã tìm thấy QR thật trong iframe: {qr_url}")
-                                    found_qr = True
-                                    break
-                        except:
-                            continue
+                # 2. Điền thông tin khách hàng (Guest Checkout)
+                try:
+                    # Chờ form xuất hiện
+                    page.wait_for_selector("input[name='fullname']", timeout=5000)
+                    page.fill("input[name='fullname']", "Khách Hàng AI")
+                    page.fill("input[name='phone']", "0901234567")
+                    page.fill("input[name='email']", "khachhang@example.com")
+                    
+                    # Bấm nút đi tiếp đến thanh toán
+                    page.locator(".btn--pri").filter(has_text="Thanh toán").first.click()
+                    print("Đã điền thông tin và bấm Thanh toán")
+                    page.wait_for_load_state("networkidle")
+                except Exception as e:
+                    print(f"Lỗi điền thông tin: {e}")
                 
-                if not found_qr:
-                    print("Vẫn không cào được QR thật. Tự động chuyển về QR VietQR để demo tiếp.")
+                # 3. Chọn cổng thanh toán (Ví dụ: Momo hoặc VNPAY)
+                try:
+                    # Tìm logo/nút của phương thức thanh toán
+                    payment_method = page.locator("text=MoMo").first # Hoặc VNPAY
+                    if payment_method.is_visible():
+                        payment_method.click()
+                        print("Đã chọn phương thức thanh toán MoMo")
+                    
+                    # Xác nhận thanh toán để bị redirect sang trang của Momo/VNPAY
+                    confirm_pay = page.locator("button, div").filter(has_text="Thanh toán").first
+                    if confirm_pay.is_visible():
+                        confirm_pay.click()
+                        print("Đã bấm xác nhận Thanh toán để chuyển trang")
+                    
+                    # QUAN TRỌNG: Đợi trang chuyển hướng sang cổng thanh toán
+                    # Thử đợi url chứa momo hoặc vnpay
+                    page.wait_for_url("**/*momo.vn*", timeout=15000)
+                    print("Đã chuyển hướng sang trang Momo")
+                except Exception as e:
+                    print(f"Lỗi chọn cổng thanh toán hoặc không redirect được: {e}")
+                
+                # 4. Cào mã QR thật từ trang Momo/VNPAY
+                try:
+                    # Quét ảnh QR
+                    qr_locator = page.locator("img.qr-image-class, img[src*='generate-qr'], img[src*='qr'], img[src*='chart']").first
+                    qr_locator.wait_for(timeout=10000)
+                    real_qr_url = qr_locator.get_attribute("src")
+                    
+                    if real_qr_url:
+                        print("LẤY THÀNH CÔNG QR THẬT CỦA CỔNG THANH TOÁN!")
+                        qr_url = real_qr_url
+                except Exception as e:
+                    print("Vẫn không lấy được QR từ cổng thanh toán, dùng fallback.")
                     # Giữ nguyên fallback VietQR đã gán ở đầu hàm
-                
+                    
         except Exception as e:
             print(f"Lỗi khi automation đặt vé: {e}")
         finally:
