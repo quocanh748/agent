@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from app.core.bot import AIAgent
+from app.core.agent import ask_agent
 import uvicorn
 import logging
 
@@ -10,7 +10,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AI Agent Web Chat")
+app = FastAPI(title="AI Agent Cinestar Booking (LangGraph)")
 
 # Add CORS middleware
 app.add_middleware(
@@ -21,11 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the agent
-logger.info("Initializing AIAgent...")
-agent = AIAgent()
-logger.info("AIAgent initialized successfully.")
-
 # Request model
 class ChatRequest(BaseModel):
     message: str
@@ -33,10 +28,9 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    logger.info(f"Received message: {request.message}")
+    logger.info(f"Received message: {request.message} from session: {request.session_id}")
     try:
-        # Use a more descriptive variable name
-        response_text = agent.ask(request.message, session_id=request.session_id)
+        response_text = ask_agent(request.message, session_id=request.session_id)
         logger.info("Agent response generated.")
         return {"response": response_text}
     except Exception as e:

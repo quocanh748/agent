@@ -1,6 +1,0 @@
-Database/*.pdf
-.env
-__pycache__
-.venv
-VectorDB/*.sqlite3
-VectorDB/*.bin
